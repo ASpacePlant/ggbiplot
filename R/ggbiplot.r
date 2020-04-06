@@ -45,14 +45,17 @@
 #'   wine.pca <- prcomp(wine, scale. = TRUE)
 #'   print(ggbiplot(wine.pca, obs.scale = 1, var.scale = 1, groups = wine.class, ellipse = TRUE, circle = TRUE))
 #'
-ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE, 
-                      obs.scale = 1 - scale, var.scale = scale, 
-                      groups = NULL, ellipse = FALSE, ellipse.prob = 0.68, 
-                      labels = NULL, labels.size = 3, alpha = 1, 
-                      var.axes = TRUE, 
-                      circle = FALSE, circle.prob = 0.69, 
-                      varname.size = 3, varname.adjust = 1.5, 
-                      varname.abbrev = FALSE, ...)
+ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
+                     obs.scale = 1 - scale, var.scale = scale, 
+                     groups = NULL, ellipse = FALSE, ellipse.prob = 0.68, 
+                     labels = NULL, labels.size = 3, alpha = 1, 
+                     var.axes = TRUE,  axes.lang = 'EN',
+                     circle = FALSE, circle.prob = 0.69, 
+                     varname.size = 3, varname.adjust = 1.5, 
+                     varname.abbrev = FALSE, 
+                     obs.size = 2, obs.color = 'black', obs.binned = F,
+                     arrow.scaling = 1, arrow.color = 'red', arrow.muted = T, arrow.alpha = 1, 
+                     ...)
 {
   library(ggplot2)
   library(plyr)
@@ -112,15 +115,18 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   # Change the labels for the axes
   if(obs.scale == 0) {
-    u.axis.labs <- paste('standardized PC', choices, sep='')
+    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisée', choices) else paste0('standardized PC', choices)
   } else {
-    u.axis.labs <- paste('PC', choices, sep='')
+    u.axis.labs <- if(axes.lang == 'FR') paste0('CP', choices) else paste0('PC', choices)
   }
+  #change text for axis
+  axis.txt = if(axes.lang == 'FR') 'var. expliquée)' else 'explained var.)'
 
-  # Append the proportion of explained variance to the axis labels
+  # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
-                       sprintf('(%0.1f%% explained var.)', 
-                               100 * pcobj$sdev[choices]^2/sum(pcobj$sdev^2)))
+                       sprintf('(%0.1f%%', 
+                               100 * pcobj$sdev[choices]^2/sum(pcobj$sdev^2)),
+                       axis.txt)
 
   # Score Labels
   if(!is.null(labels)) {
@@ -143,9 +149,11 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   df.v$angle <- with(df.v, (180/pi) * atan(yvar / xvar))
   df.v$hjust = with(df.v, (1 - varname.adjust * sign(xvar)) / 2)
 
-  # Base plot
+  #= Base plot ==========================================================================================
   g <- ggplot(data = df.u, aes(x = xvar, y = yvar)) + 
-          xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + coord_equal()
+          xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + coord_equal() +
+          geom_hline(yintercept = 0, linetype="dashed") +
+          geom_vline(xintercept = 0, linetype="dashed")
 
   if(var.axes) {
     # Draw circle
@@ -156,13 +164,21 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
       g <- g + geom_path(data = circle, color = muted('white'), 
                          size = 1/2, alpha = 1/3)
     }
-
+    
+    # Get arrow color
+    arrow.rgb = if(arrow.muted == T) col2rgb(muted(arrow.color)) else col2rgb(arrow.color) #
+    arrow.r = arrow.rgb[1]/255 #
+    arrow.g = arrow.rgb[2]/255 #
+    arrow.b = arrow.rgb[3]/255 #
+    arrow.labCol = rgb(arrow.r, arrow.g, arrow.b, arrow.alpha) #
+    arrow.txtCol = rgb(arrow.r, arrow.g, arrow.b) #
+    
     # Draw directions
     g <- g +
       geom_segment(data = df.v,
-                   aes(x = 0, y = 0, xend = xvar, yend = yvar),
+                   aes(x = 0, y = 0, xend = xvar*arrow.scaling, yend = yvar*arrow.scaling),
                    arrow = arrow(length = unit(1/2, 'picas')), 
-                   color = muted('red'))
+                   color = arrow.labCol) #
   }
 
   # Draw either labels or points
@@ -175,9 +191,20 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     }
   } else {
     if(!is.null(df.u$groups)) {
-      g <- g + geom_point(aes(color = groups), alpha = alpha)
+      #g <- g + geom_point(aes(color = groups), alpha = alpha)
+      if(obs.binned){
+        g <- g + geom_point(aes(fill = groups, size = obs.size), color = obs.color, shape = 21, alpha = alpha) +
+          scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size)))
+      } else {
+        g <- g + geom_point(aes(fill = groups), color = obs.color, shape = 21, alpha = alpha, size = obs.size)
+      }
     } else {
-      g <- g + geom_point(alpha = alpha)      
+      if(obs.binned){
+        g <- g + geom_point(aes(size = obs.size), color = obs.color, shape = 21, alpha = alpha) +
+          scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size)))
+      } else {
+        g <- g + geom_point(color = obs.color, shape = 21, alpha = alpha, size = obs.size)  
+      }
     }
   }
 
@@ -204,9 +231,9 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   if(var.axes) {
     g <- g + 
     geom_text(data = df.v, 
-              aes(label = varname, x = xvar, y = yvar, 
+              aes(label = varname, x = xvar*arrow.scaling, y = yvar*arrow.scaling, 
                   angle = angle, hjust = hjust), 
-              color = 'darkred', size = varname.size)
+              color = arrow.txtCol, size = varname.size)
   }
   # Change the name of the legend for groups
   # if(!is.null(groups)) {
