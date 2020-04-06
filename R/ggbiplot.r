@@ -47,14 +47,15 @@
 #'
 ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                      obs.scale = 1 - scale, var.scale = scale, 
-                     groups = NULL, ellipse = FALSE, ellipse.prob = 0.68, 
+                     groups = NULL, ellipse = FALSE, ellipse.prob = 0.68,
+                     ellipse.type = 'norm', ellipse.size = 1, ellipse.alpha = 0.15,
                      labels = NULL, labels.size = 3, alpha = 1, 
                      var.axes = TRUE,  axes.lang = 'EN',
                      circle = FALSE, circle.prob = 0.69, 
                      varname.size = 3, varname.adjust = 1.5, 
                      varname.abbrev = FALSE, 
                      obs.size = 2, obs.color = 'black', obs.binned = F,
-                     arrow.scaling = 1, arrow.color = 'red', arrow.muted = T, arrow.alpha = 1, 
+                     arrow.scaling = 1, arrow.color = muted('red'), arrow.alpha = 1, 
                      ...)
 {
   library(ggplot2)
@@ -115,12 +116,12 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   # Change the labels for the axes
   if(obs.scale == 0) {
-    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisée', choices) else paste0('standardized PC', choices)
+    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisï¿½e', choices) else paste0('standardized PC', choices)
   } else {
     u.axis.labs <- if(axes.lang == 'FR') paste0('CP', choices) else paste0('PC', choices)
   }
   #change text for axis
-  axis.txt = if(axes.lang == 'FR') 'var. expliquée)' else 'explained var.)'
+  axis.txt = if(axes.lang == 'FR') 'var. expliquï¿½e)' else 'explained var.)'
 
   # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
@@ -154,7 +155,15 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
           xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + coord_equal() +
           geom_hline(yintercept = 0, linetype="dashed") +
           geom_vline(xintercept = 0, linetype="dashed")
-
+  
+  if(!is.null(df.u$groups) && ellipse) {
+    g <- g + stat_ellipse(geom="polygon", aes(y = yvar, x = xvar, fill = groups), 
+                          alpha = ellipse.alpha, 
+                          show.legend = FALSE, 
+                          level = ellipse.prob,
+                          type = ellipse.type, 
+                          size = ellipse.size)
+  }
   if(var.axes) {
     # Draw circle
     if(circle) 
@@ -166,10 +175,9 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     }
     
     # Get arrow color
-    arrow.rgb = if(arrow.muted == T) col2rgb(muted(arrow.color)) else col2rgb(arrow.color) #
-    arrow.r = arrow.rgb[1]/255 #
-    arrow.g = arrow.rgb[2]/255 #
-    arrow.b = arrow.rgb[3]/255 #
+    arrow.r = col2rgb(arrow.color)[1]/255 #
+    arrow.g = col2rgb(arrow.color)[2]/255 #
+    arrow.b = col2rgb(arrow.color)[3]/255 #
     arrow.labCol = rgb(arrow.r, arrow.g, arrow.b, arrow.alpha) #
     arrow.txtCol = rgb(arrow.r, arrow.g, arrow.b) #
     
@@ -210,21 +218,28 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   # Overlay a concentration ellipse if there are groups
   if(!is.null(df.u$groups) && ellipse) {
-    theta <- c(seq(-pi, pi, length = 50), seq(pi, -pi, length = 50))
-    circle <- cbind(cos(theta), sin(theta))
-
-    ell <- ddply(df.u, 'groups', function(x) {
-      if(nrow(x) <= 2) {
-        return(NULL)
-      }
-      sigma <- var(cbind(x$xvar, x$yvar))
-      mu <- c(mean(x$xvar), mean(x$yvar))
-      ed <- sqrt(qchisq(ellipse.prob, df = 2))
-      data.frame(sweep(circle %*% chol(sigma) * ed, 2, mu, FUN = '+'), 
-                 groups = x$groups[1])
-    })
-    names(ell)[1:2] <- c('xvar', 'yvar')
-    g <- g + geom_path(data = ell, aes(color = groups, group = groups))
+    #theta <- c(seq(-pi, pi, length = 50), seq(pi, -pi, length = 50))
+    #circle <- cbind(cos(theta), sin(theta))
+#
+    #ell <- ddply(df.u, 'groups', function(x) {
+    #  if(nrow(x) <= 2) {
+    #    return(NULL)
+    #  }
+    #  sigma <- var(cbind(x$xvar, x$yvar))
+    #  mu <- c(mean(x$xvar), mean(x$yvar))
+    #  ed <- sqrt(qchisq(ellipse.prob, df = 2))
+    #  data.frame(sweep(circle %*% chol(sigma) * ed, 2, mu, FUN = '+'), 
+    #             groups = x$groups[1])
+    #})
+    #names(ell)[1:2] <- c('xvar', 'yvar')
+    #g <- g + geom_path(data = ell, aes(color = groups, fill = groups, group = groups), alpha = 0.5)
+    g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, color = groups), 
+                          #alpha = ellipse.alpha, 
+                          show.legend = FALSE, 
+                          level = ellipse.prob,
+                          type = ellipse.type, 
+                          size = ellipse.size,
+                          lwd = 1)
   }
 
   # Label the variable axes
