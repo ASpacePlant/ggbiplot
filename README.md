@@ -14,7 +14,7 @@ Installation
 
 ``` r
 library(devtools)
-install_github("vqv/ggbiplot")
+install_github("salix-d/ggbiplot")
 ```
 
 Example Usage
