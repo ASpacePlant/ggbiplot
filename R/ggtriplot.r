@@ -33,6 +33,7 @@
 #' 
 #' @param ellipse.type        what type of stat_ellipse to draw : 't', 'norm' or 'euclid'
 #' @param ellipse.size        width of the path of the ellipse drawn (size aes of stat_ellipse)
+#' @param ellipse.size.range  if size set to 'groups' or 'gr', will use this as size range for the ellipse line size
 #' @param ellipse.show.legend logical. Should this layer be included in the legends? NA, the default, includes if any aesthetics are mapped. FALSE never includes, and TRUE always includes.
 #' @param ellipse.alpha       alpha transparency value for the fill aes of the ellipse
 #' 
@@ -74,7 +75,8 @@
 ggtriplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                      obs.scale = 1 - scale, var.scale = scale, 
                      groups = NULL, ellipse = FALSE, ellipse.level = 0.69,
-                     ellipse.type = 'norm', ellipse.size = 1, ellipse.show.legend = NA, ellipse.alpha = 0.15,
+                     ellipse.type = 'norm', ellipse.size = 0.5, ellipse.size.range = c(0.05,2),
+                     ellipse.show.legend = NA, ellipse.alpha = 0.15,
                      labels = NULL, labels.size = 3, alpha = 1, 
                      circle = FALSE, circle.prob = 0.69, axes.lang = 'EN', name.adjust = 1.5,
                      var.arrows = TRUE, varname.size = 3, varname.abbrev = FALSE, arrow.alpha = 1,
@@ -390,13 +392,27 @@ ggtriplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                             show.legend = FALSE, 
                             level = ellipse.level,
                             type = ellipse.type, 
-                            lwd = 1)
-    } else {
-      g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, lty = groups),
-                            show.legend = ellipse.show.legend, 
-                            level = ellipse.level,
-                            type = ellipse.type, 
                             lwd = ellipse.size)
+    } else {
+      if(ellipse.size == 'groups' | ellipse.size == 'gr'){
+        print('gr')
+        egroups = unlist(sapply(groups, function(x) paste0('ell', which(unique(groups) %in% x))))
+        g <- g  + new_scale_size() + 
+                  stat_ellipse(geom="path", 
+                               aes(y = yvar, x = xvar, lty = groups, size = groups),
+                               show.legend = ellipse.show.legend, 
+                               level = ellipse.level,
+                               type = ellipse.type
+                               ) + 
+                  scale_size_discrete(range = ellipse.size.range)
+      } else {
+        g <- g  + stat_ellipse(geom="path", 
+                               aes(y = yvar, x = xvar), #, lty = groups),
+                               show.legend = ellipse.show.legend, 
+                               level = ellipse.level,
+                               type = ellipse.type
+                               )
+      }
     }
     #if(!is.null(obs.fill)){
     #  g <- g +  scale_color_manual(values = c("#CCCCCC", "#969696", "#636363", "#252525")) #grays
@@ -420,7 +436,6 @@ ggtriplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                     angle = angle, hjust = hjust), 
                 color = bi.arrow.txtCol, size = varname.size)
   }
-  g <- g + guides(fill = guide_legend(override.aes = list(size = 4)))
   # Change the name of the legend
   # if(!is.null(groups)) {
   #   g <- g + scale_color_brewer(name = deparse(substitute(groups)), 
