@@ -136,12 +136,12 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   # Change the labels for the axes
   if(obs.scale == 0) {
-    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisï¿½e', choices) else paste0('standardized PC', choices)
+    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisée', choices) else paste0('standardized PC', choices)
   } else {
     u.axis.labs <- if(axes.lang == 'FR') paste0('CP', choices) else paste0('PC', choices)
   }
   #change text for axis
-  axis.txt = if(axes.lang == 'FR') 'var. expliquï¿½e)' else 'explained var.)'
+  axis.txt = if(axes.lang == 'FR') 'var. expliquée)' else 'explained var.)'
 
   # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
