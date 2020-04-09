@@ -31,3 +31,19 @@ ggbiplot(wine.pca, obs.scale = 1, var.scale = 1,
 ```
 
 ![](README-wine-example-1.png)
+
+``` r
+library(ggbiplot)
+library(vegan)
+data(wine)
+wine.rda <- rda(wine[1:9], wine[10:13], scale = T)
+ggtriplot(wine.rda, obs.scale = 1, var.scale = 1, choices = c(1,2), 
+          var.arrow.color = '#696969', var.arrow.scaling = 1.5, varname.size = 4, 
+          bi.arrow.color = '#121212', bi.arrow.scaling = 1, biname.size = 5, 
+          ellipse = TRUE, ellipse.type = 't', axes.lang = 'FR',
+          groups = wine.class) +
+  xlim(-21,21) + ylim(-21,21) +
+  guides(fill = guide_legend('wine')) +
+  theme(legend.direction = 'horizontal', legend.position = 'top')
+  ```
+  ![](README-wine-example-2.png)
