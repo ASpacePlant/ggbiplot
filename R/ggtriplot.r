@@ -163,12 +163,12 @@ ggtriplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   
   # Change the labels for the axes
   if(obs.scale == 0) {
-    u.axis.labs <- if(axes.lang == 'FR') paste0('ARD standardisée', choices) else paste0('standardized RDA', choices)
+    u.axis.labs <- if(axes.lang == 'FR') paste0('ARD standardisÃ©e', choices) else paste0('standardized RDA', choices)
   } else {
     u.axis.labs <- if(axes.lang == 'FR') paste0('ARD', choices) else paste0('RDA', choices)
   }
   #change text for axis
-  axis.txt = if(axes.lang == 'FR') 'var. expliquée)' else 'explained var.)'
+  axis.txt = if(axes.lang == 'FR') 'var. expliquÃ©e)' else 'explained var.)'
   
   # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
@@ -395,7 +395,6 @@ ggtriplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                             lwd = ellipse.size)
     } else {
       if(ellipse.size == 'groups' | ellipse.size == 'gr'){
-        print('gr')
         egroups = unlist(sapply(groups, function(x) paste0('ell', which(unique(groups) %in% x))))
         g <- g  + new_scale_size() + 
                   stat_ellipse(geom="path", 
