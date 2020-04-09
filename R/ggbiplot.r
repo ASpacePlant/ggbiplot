@@ -17,28 +17,39 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 # 
-
-#' Biplot for Principal Components using ggplot2
+#'  Biplot for Principal Components using ggplot2
 #'
-#' @param pcobj           an object returned by prcomp() or princomp()
-#' @param choices         which PCs to plot
-#' @param scale           covariance biplot (scale = 1), form biplot (scale = 0). When scale = 1, the inner product between the variables approximates the covariance and the distance between the points approximates the Mahalanobis distance.
-#' @param obs.scale       scale factor to apply to observations
-#' @param var.scale       scale factor to apply to variables
-#' @param pc.biplot       for compatibility with biplot.princomp()
-#' @param groups          optional factor variable indicating the groups that the observations belong to. If provided the points will be colored according to groups
-#' @param ellipse         draw a normal data ellipse for each group?
-#' @param ellipse.prob    size of the ellipse in Normal probability
-#' @param labels          optional vector of labels for the observations
-#' @param labels.size     size of the text used for the labels
-#' @param alpha           alpha transparency value for the points (0 = transparent, 1 = opaque)
-#' @param circle          draw a correlation circle? (only applies when prcomp was called with scale = TRUE and when var.scale = 1)
-#' @param var.axes        draw arrows for the variables?
-#' @param varname.size    size of the text for variable names
-#' @param varname.adjust  adjustment factor the placement of the variable names, >= 1 means farther from the arrow
-#' @param varname.abbrev  whether or not to abbreviate the variable names
+#' @param pcobj               an object returned by prcomp() or princomp() or rda() (from the vegan package)
+#' @param choices             which PCs to plot
+#' @param scale               covariance biplot (scale = 1), form biplot (scale = 0). When scale = 1, the inner product between the variables approximates the covariance and the distance between the points approximates the Mahalanobis distance.
+#' @param obs.scale           scale factor to apply to observations
+#' @param var.scale           scale factor to apply to variables
+#' @param pc.biplot           for compatibility with biplot.princomp()
+#' @param groups              optional factor variable indicating the groups that the observations belong to. If provided the points will be colored according to groups
+#' @param ellipse             draw a stat_ellipse() for each group?
+#' @param ellipse.type        what type of stat_ellipse to draw : 't', 'norm' or 'euclid'
+#' @param ellipse.level       the confidence level at which to draw an ellipse (default is 0.95), or, if type="euclid", the radius of the circle to be drawn.
+#' @param ellipse.size        width of the path of the ellipse drawn (size aes of stat_ellipse)
+#' @param ellipse.show.legend logical. Should this layer be included in the legends? NA, the default, includes if any aesthetics are mapped. FALSE never includes, and TRUE always includes.
+#' @param ellipse.alpha       alpha transparency value for the fill aes of the ellipse
+#' @param labels              optional vector of labels for the observations
+#' @param labels.size         size of the text used for the labels
+#' @param alpha               alpha transparency value for the points (0 = transparent, 1 = opaque)
+#' @param circle              draw a correlation circle? (only applies when prcomp was called with scale = TRUE and when var.scale = 1)
+#' @param var.axes            draw arrows for the variables?
+#' @param axes.lang           in which language should the axis text be displayed : 'FR' for french, everything else is english for now
+#' @param varname.size        size of the text for variable names
+#' @param varname.adjust      adjustment factor the placement of the variable names, >= 1 means farther from the arrow
+#' @param varname.abbrev      whether or not to abbreviate the variable names
+#' @param obs.size            size aes of observation
+#' @param obs.size.binned     weither to use scale_size_binned() or not
+#' @param obs.size.name       to manually name the obsevation size legend
+#' @param obs.color           color aes of observation; default 'black' help distinguishing the points imo
+#' @param arrow.scaling       factor to which the length of the variables arrows will be scaled
+#' @param arrow.color         color aes of the variables arrows
+#' @param arrow.alpha         alpha transparency value for the variables arrows
 #'
-#' @return                a ggplot2 plot
+#' @return                    a ggplot2 plot
 #' @export
 #' @examples
 #'   data(wine)
@@ -47,14 +58,14 @@
 #'
 ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                      obs.scale = 1 - scale, var.scale = scale, 
-                     groups = NULL, ellipse = FALSE, ellipse.prob = 0.68,
+                     groups = NULL, ellipse = FALSE, ellipse.level = 0.69, ellipse.show.legend = NA,
                      ellipse.type = 'norm', ellipse.size = 1, ellipse.alpha = 0.15,
                      labels = NULL, labels.size = 3, alpha = 1, 
                      var.axes = TRUE,  axes.lang = 'EN',
                      circle = FALSE, circle.prob = 0.69, 
                      varname.size = 3, varname.adjust = 1.5, 
                      varname.abbrev = FALSE, 
-                     obs.size = 2, obs.color = 'black', obs.binned = F,
+                     obs.size = 2, obs.color = 'black', obs.size.name = F, obs.fill = NULL, obs.pal = NULL,
                      arrow.scaling = 1, arrow.color = muted('red'), arrow.alpha = 1, 
                      ...)
 {
@@ -71,24 +82,33 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     d <- pcobj$sdev
     u <- sweep(pcobj$x, 2, 1 / (d * nobs.factor), FUN = '*')
     v <- pcobj$rotation
+    exp_var <- d[choices]^2/sum(d^2)
   } else if(inherits(pcobj, 'princomp')) {
     nobs.factor <- sqrt(pcobj$n.obs)
     d <- pcobj$sdev
     u <- sweep(pcobj$scores, 2, 1 / (d * nobs.factor), FUN = '*')
     v <- pcobj$loadings
+    exp_var <- d[choices]^2/sum(d^2)
   } else if(inherits(pcobj, 'PCA')) {
     nobs.factor <- sqrt(nrow(pcobj$call$X))
     d <- unlist(sqrt(pcobj$eig)[1])
     u <- sweep(pcobj$ind$coord, 2, 1 / (d * nobs.factor), FUN = '*')
     v <- sweep(pcobj$var$coord,2,sqrt(pcobj$eig[1:ncol(pcobj$var$coord),1]),FUN="/")
+    exp_var <- d[choices]^2/d.total
   } else if(inherits(pcobj, "lda")) {
-      nobs.factor <- sqrt(pcobj$N)
-      d <- pcobj$svd
-      u <- predict(pcobj)$x/nobs.factor
-      v <- pcobj$scaling
-      d.total <- sum(d^2)
+    nobs.factor <- sqrt(pcobj$N)
+    d <- pcobj$svd
+    u <- predict(pcobj)$x/nobs.factor
+    v <- pcobj$scaling
+    exp_var <- d[choices]^2/sum(d^2)
+  } else if(inherits(pcobj, "rda")) {
+    nobs.factor <- sqrt(nrow(pcobj$CA$u) - 1)
+    d <- sqrt(pcobj$CA$eig)
+    u <- pcobj$CA$u
+    v <- pcobj$CA$v
+    exp_var <- summary(pcobj)$concont$importance[2, choices]
   } else {
-    stop('Expected a object of class prcomp, princomp, PCA, or lda')
+    stop('Expected a object of class prcomp, princomp, PCA, lda or rda')
   }
 
   # Scores
@@ -126,7 +146,7 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
                        sprintf('(%0.1f%%', 
-                               100 * pcobj$sdev[choices]^2/sum(pcobj$sdev^2)),
+                               100 * exp_var),
                        axis.txt)
 
   # Score Labels
@@ -154,16 +174,18 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   g <- ggplot(data = df.u, aes(x = xvar, y = yvar)) + 
           xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + coord_equal() +
           geom_hline(yintercept = 0, linetype="dashed") +
-          geom_vline(xintercept = 0, linetype="dashed")
+          geom_vline(xintercept = 0, linetype="dashed") + 
+          theme_minimal()
   
-  if(!is.null(df.u$groups) && ellipse) {
+  if(!is.null(df.u$groups) & ellipse & is.null(obs.fill)) {
     g <- g + stat_ellipse(geom="polygon", aes(y = yvar, x = xvar, fill = groups), 
                           alpha = ellipse.alpha, 
                           show.legend = FALSE, 
-                          level = ellipse.prob,
+                          level = ellipse.level,
                           type = ellipse.type, 
                           size = ellipse.size)
   }
+  
   if(var.axes) {
     # Draw circle
     if(circle) 
@@ -188,39 +210,67 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                    arrow = arrow(length = unit(1/2, 'picas')), 
                    color = arrow.labCol) #
   }
-
   # Draw either labels or points
   if(!is.null(df.u$labels)) {
     if(!is.null(df.u$groups)) {
-      g <- g + geom_text(aes(label = labels, color = groups), 
-                         size = labels.size)
+      g <- g + geom_text(aes(label = labels, color = groups), size = labels.size)
     } else {
       g <- g + geom_text(aes(label = labels), size = labels.size)      
     }
   } else {
+    fill = if(!is.null(obs.fill)) obs.fill else groups
+    if(!is.null(obs.fill)){
+      g <- g +  new_scale_fill() +
+        scale_fill_manual(values = obs.pal) #grays
+    }
+    #shape = if(!is.null(obs.shape)) obs.shape else 21
     if(!is.null(df.u$groups)) {
-      #g <- g + geom_point(aes(color = groups), alpha = alpha)
-      if(obs.binned){
-        g <- g + geom_point(aes(fill = groups, size = obs.size), color = obs.color, shape = 21, alpha = alpha) +
-          scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size)))
+      if(length(obs.size) == 1){ 
+        if(length(fill) == 1) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+        else g <- g + geom_point(aes(fill = fill), size = obs.size, color = obs.color, shape = 21, alpha = alpha)
       } else {
-        g <- g + geom_point(aes(fill = groups), color = obs.color, shape = 21, alpha = alpha, size = obs.size)
+        if(length(fill) == 1) g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
+        else g <- g + geom_point(aes(fill = fill, size = obs.size), color = obs.color, shape = 21, alpha = alpha)
+        #if(obs.binned){
+        #  g <- g + scale_size_binned(guide = guide_bins())
+        #}
       }
     } else {
-      if(obs.binned){
-        g <- g + geom_point(aes(size = obs.size), color = obs.color, shape = 21, alpha = alpha) +
-          scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size)))
+      if(is.discrete(obs.size)){
+        if(!is.null(fill)) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+        else g <- g + geom_point(fill = obs.color, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
       } else {
-        g <- g + geom_point(color = obs.color, shape = 21, alpha = alpha, size = obs.size)  
+        if(!is.null(fill))  g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
+        else g <- g + geom_point(aes(size = obs.size), fill = obs.color, color = obs.color, shape = 21, alpha = alpha)
+        #if(obs.binned){
+        #  g <- g + scale_size_binned(guide = guide_bins())#, name = deparse(substitute(obs.size)))
+        #}
       }
     }
   }
+      #g <- g + geom_point(aes(color = groups), alpha = alpha)
+      #length.check = which(length(obs.size) == 1, length(obs.size) == 1) # if just one value, place outside aes
+      #if(lenght(length.check) == 2) g <- g + geom_point(aes(fill = groups), color = obs.color, shape = 21, alpha = alpha, size = obs.size)
+      #else if(length.check == 1)  g <- g + geom_point(aes(fill = groups, color = obs.color), size = obs.size, shape = 21, alpha = alpha) #only size length == 1, only size out
+      #else if(length.check == 2) g <- g + geom_point(aes(fill = groups, size = obs.size), color = obs.color, shape = 21, alpha = alpha)
+      #else{
+      #  g <- g + geom_point(aes(fill = groups, size = obs.size, color = obs.color), shape = 21, alpha = alpha) #all in aes
+      #  if(obs.binned){                                                                                        #and if binned = T; use binned scale
+      #    discrete.check = which(!is.discrete(obs.size), !is.discrete(obs.size)) #check which is binnable and bin them
+      #    if(length(discrete.check) == 2){
+      #      g <- g + scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size))) +
+      #        scale_color_binned(guide = guide_bins(), name = deparse(substitute(obs.color)))
+      #    } else if(discrete.check == 1){
+      #      g <- g + scale_color_binned(guide = guide_bins(), name = deparse(substitute(obs.color))) #if binned = T; use binned scale
+      #    } else if(discrete.check == 2){
+      #      g <- g + scale_size_binned(guide = guide_bins(), name = deparse(substitute(obs.size))) #if binned = T; use binned scale
+      #    }
 
   # Overlay a concentration ellipse if there are groups
   if(!is.null(df.u$groups) && ellipse) {
     #theta <- c(seq(-pi, pi, length = 50), seq(pi, -pi, length = 50))
     #circle <- cbind(cos(theta), sin(theta))
-#
+    #
     #ell <- ddply(df.u, 'groups', function(x) {
     #  if(nrow(x) <= 2) {
     #    return(NULL)
@@ -233,13 +283,19 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     #})
     #names(ell)[1:2] <- c('xvar', 'yvar')
     #g <- g + geom_path(data = ell, aes(color = groups, fill = groups, group = groups), alpha = 0.5)
-    g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, color = groups), 
-                          #alpha = ellipse.alpha, 
-                          show.legend = FALSE, 
-                          level = ellipse.prob,
-                          type = ellipse.type, 
-                          size = ellipse.size,
-                          lwd = 1)
+    if(is.null(obs.fill)){
+      g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, color = groups), 
+                            show.legend = FALSE, 
+                            level = ellipse.level,
+                            type = ellipse.type, 
+                            lwd = 1)
+    } else {
+      g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, lty = groups),
+                            show.legend = FALSE, 
+                            level = ellipse.level,
+                            type = ellipse.type, 
+                            lwd = 1)
+    }
   }
 
   # Label the variable axes
