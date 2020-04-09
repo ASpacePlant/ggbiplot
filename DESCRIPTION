@@ -15,3 +15,4 @@ URL: http://github.com/vqv/ggbiplot
 Collate:
     'ggbiplot.r'
     'ggscreeplot.r'
+    'ggtriplot.r'
