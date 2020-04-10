@@ -106,7 +106,7 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     d <- sqrt(pcobj$CA$eig)
     u <- pcobj$CA$u
     v <- pcobj$CA$v
-    exp_var <- summary(pcobj)$concont$importance[2, choices]
+    exp_var <- summary(pcobj)$cont$importance[2, choices]
   } else {
     stop('Expected a object of class prcomp, princomp, PCA, lda or rda')
   }
@@ -219,35 +219,45 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     }
   } else {
     fill = if(!is.null(obs.fill)) obs.fill else groups
-    if(!is.null(obs.fill)){
-      g <- g +  new_scale_fill() +
-        scale_fill_manual(values = obs.pal) #grays
-    }
-    #shape = if(!is.null(obs.shape)) obs.shape else 21
-    if(!is.null(df.u$groups)) {
-      if(length(obs.size) == 1){ 
-        if(length(fill) == 1) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
-        else g <- g + geom_point(aes(fill = fill), size = obs.size, color = obs.color, shape = 21, alpha = alpha)
-      } else {
-        if(length(fill) == 1) g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
-        else g <- g + geom_point(aes(fill = fill, size = obs.size), color = obs.color, shape = 21, alpha = alpha)
-        #if(obs.binned){
-        #  g <- g + scale_size_binned(guide = guide_bins())
-        #}
-      }
-    } else {
-      if(is.discrete(obs.size)){
-        if(!is.null(fill)) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
-        else g <- g + geom_point(fill = obs.color, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
-      } else {
-        if(!is.null(fill))  g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
-        else g <- g + geom_point(aes(size = obs.size), fill = obs.color, color = obs.color, shape = 21, alpha = alpha)
-        #if(obs.binned){
-        #  g <- g + scale_size_binned(guide = guide_bins())#, name = deparse(substitute(obs.size)))
-        #}
-      }
-    }
+  if(!is.null(obs.fill) & !is.null(obs.pal)){
+    g <- g +  new_scale_fill() +
+      scale_fill_manual(values = obs.pal)
   }
+    #shape = if(!is.null(obs.shape)) obs.shape else 21
+    #if(!is.null(df.u$groups)) {
+      if(length(obs.size) == 1){ 
+        if(!is.null(fill)){
+          if(length(fill) == 1) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+          else g <- g + geom_point(aes(fill = fill), size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+        } else {
+          g <- g + geom_point(size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+        }
+      } else {
+        if(!is.null(fill)){
+          if(length(fill) == 1) g <- g + geom_point(aes(size = obs.size),fill = fill, color = obs.color, shape = 21, alpha = alpha)
+          else g <- g + geom_point(aes(fill = fill, size = obs.size), color = obs.color, shape = 21, alpha = alpha)
+        } else {
+          g <- g + geom_point(aes(size = obs.size), color = obs.color, shape = 21, alpha = alpha)
+        }
+      }
+    #----------------
+    #} else {
+     # if(length(obs.size) == 1){
+     #   if(!is.null(fill)){
+     #     if(length(fill) == 1) g <- g + geom_point(fill = fill, size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+     #     else g <- g + geom_point(aes(fill = fill), size = obs.size, color = obs.color, shape = 21, alpha = alpha)
+     #   }
+     # } else {
+     #   if(!is.null(fill))  g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
+     #   else g <- g + geom_point(aes(size = obs.size), fill = obs.color, color = obs.color, shape = 21, alpha = alpha)
+     #   #if(obs.binned){
+     #   #  g <- g + scale_size_binned(guide = guide_bins())#, name = deparse(substitute(obs.size)))
+     #   #}
+     }
+  
+
+  
+#------------------------
       #g <- g + geom_point(aes(color = groups), alpha = alpha)
       #length.check = which(length(obs.size) == 1, length(obs.size) == 1) # if just one value, place outside aes
       #if(lenght(length.check) == 2) g <- g + geom_point(aes(fill = groups), color = obs.color, shape = 21, alpha = alpha, size = obs.size)
