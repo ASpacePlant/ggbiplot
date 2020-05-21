@@ -26,6 +26,9 @@
 #' @param var.scale           scale factor to apply to variables
 #' @param pc.biplot           for compatibility with biplot.princomp()
 #' @param groups              optional factor variable indicating the groups that the observations belong to. If provided the points will be colored according to groups
+#' @param gr.labels           add a label at the centroï¿½ds of each ellipse?
+#' @param gr.pal              optional color palette for groups
+#' @param gr.leg.title        optional legend title for groups
 #' @param ellipse             draw a stat_ellipse() for each group?
 #' @param ellipse.type        what type of stat_ellipse to draw : 't', 'norm' or 'euclid'
 #' @param ellipse.level       the confidence level at which to draw an ellipse (default is 0.95), or, if type="euclid", the radius of the circle to be drawn.
@@ -45,9 +48,13 @@
 #' @param obs.size.binned     weither to use scale_size_binned() or not
 #' @param obs.size.name       to manually name the obsevation size legend
 #' @param obs.color           color aes of observation; default 'black' help distinguishing the points imo
+#' @param obs.pal             optional color palette for observations
+#' @param obs.leg.title       optional legend title for observations
 #' @param arrow.scaling       factor to which the length of the variables arrows will be scaled
 #' @param arrow.color         color aes of the variables arrows
 #' @param arrow.alpha         alpha transparency value for the variables arrows
+#' @param text.col.muted      logical. To make text easier to read the color can be muted.
+#' @param draw.axis           logical. To draw the plot axis or not.
 #'
 #' @return                    a ggplot2 plot
 #' @export
@@ -58,15 +65,17 @@
 #'
 ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
                      obs.scale = 1 - scale, var.scale = scale, 
-                     groups = NULL, ellipse = FALSE, ellipse.level = 0.69, ellipse.show.legend = NA,
+                     groups = NULL, gr.labels = FALSE, gr.lab.size = 3, gr.pal = NULL, gr.leg.title = NULL, 
+                     ellipse = FALSE, ellipse.level = 0.69, ellipse.show.legend = NA,
                      ellipse.type = 'norm', ellipse.size = 1, ellipse.alpha = 0.15,
                      labels = NULL, labels.size = 3, alpha = 1, 
                      var.axes = TRUE,  axes.lang = 'EN',
                      circle = FALSE, circle.prob = 0.69, 
                      varname.size = 3, varname.adjust = 1.5, 
-                     varname.abbrev = FALSE, 
-                     obs.size = 2, obs.color = 'black', obs.size.name = F, obs.fill = NULL, obs.pal = NULL,
+                     varname.abbrev = FALSE,
+                     obs.size = 2, obs.color = 'black', obs.size.name = F, obs.fill = NULL, obs.pal = NULL, obs.leg.title = NULL,
                      arrow.scaling = 1, arrow.color = muted('red'), arrow.alpha = 1, 
+                     draw.axis = T, text.col.muted = T,
                      ...)
 {
   library(ggplot2)
@@ -94,7 +103,7 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     d <- unlist(sqrt(pcobj$eig)[1])
     u <- sweep(pcobj$ind$coord, 2, 1 / (d * nobs.factor), FUN = '*')
     v <- sweep(pcobj$var$coord,2,sqrt(pcobj$eig[1:ncol(pcobj$var$coord),1]),FUN="/")
-    exp_var <- d[choices]^2/d.total
+    exp_var <- d[choices]^2/sum(d^2)
   } else if(inherits(pcobj, "lda")) {
     nobs.factor <- sqrt(pcobj$N)
     d <- pcobj$svd
@@ -107,6 +116,14 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     u <- pcobj$CA$u
     v <- pcobj$CA$v
     exp_var <- summary(pcobj)$cont$importance[2, choices]
+  } else if(inherits(pcobj, "betadisper")){
+    #will have to fix how it does the arrows, usually betadisper shows the centroids instead
+    nobs.factor <- sqrt(nrow(pcobj$vectors) - 1)
+    pcobj$eig[pcobj$eig < 0] = 0
+    d <- sqrt(pcobj$eig)
+    u <- pcobj$vectors
+    v <- pcobj$centroids
+    exp_var <- d[choices]^2/sum(d^2)
   } else {
     stop('Expected a object of class prcomp, princomp, PCA, lda or rda')
   }
@@ -136,12 +153,12 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   # Change the labels for the axes
   if(obs.scale == 0) {
-    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisée', choices) else paste0('standardized PC', choices)
+    u.axis.labs <- if(axes.lang == 'FR') paste0('CP standardisï¿½e', choices) else paste0('standardized PC', choices)
   } else {
     u.axis.labs <- if(axes.lang == 'FR') paste0('CP', choices) else paste0('PC', choices)
   }
   #change text for axis
-  axis.txt = if(axes.lang == 'FR') 'var. expliquée)' else 'explained var.)'
+  axis.txt = if(axes.lang == 'FR') 'var. expliquï¿½e)' else 'explained var.)'
 
   # Append the proportion of explained variance to the axis labels with text
   u.axis.labs <- paste(u.axis.labs, 
@@ -157,6 +174,10 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
   # Grouping variable
   if(!is.null(groups)) {
     df.u$groups <- groups
+    # Make centroids df for groups if gr.labels == T
+    if(gr.labels){
+      df.u.cn = data.frame(aggregate(list(xvar = df.u$xvar, yvar = df.u$yvar), by=list(groups = df.u$groups), mean))
+    }
   }
 
   # Variable Names
@@ -172,11 +193,27 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
 
   #= Base plot ==========================================================================================
   g <- ggplot(data = df.u, aes(x = xvar, y = yvar)) + 
-          xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + coord_equal() +
-          geom_hline(yintercept = 0, linetype="dashed") +
-          geom_vline(xintercept = 0, linetype="dashed") + 
-          theme_minimal()
-  
+    xlab(u.axis.labs[1]) + ylab(u.axis.labs[2]) + 
+    coord_equal() + theme_minimal()
+  if(draw.axis){
+    g <- g +  
+      geom_hline(yintercept = 0, linetype="dashed") +
+      geom_vline(xintercept = 0, linetype="dashed")
+  }
+  if(!is.null(obs.pal) | !is.null(gr.pal)){
+    if(!is.null(obs.pal)){
+      pal = obs.pal
+      pal.m = if(text.col.muted) muted(pal) else pal
+      leg.name = if(is.null(obs.leg.title) & is.null(obs.fill)) substitute(groups) else if(is.null(obs.leg.title) & !is.null(obs.fill)) substitute(obs.fill) else obs.leg.title
+    } else {
+      pal = gr.pal
+      pal.m = if(text.col.muted) muted(pal) else pal
+      leg.name = if(is.null(gr.leg.title)) substitute(groups) else gr.leg.title
+    }
+    g <- g +
+      scale_fill_manual(values = pal, name = leg.name) +
+      scale_color_manual(values = pal.m, name = leg.name)
+  }
   if(!is.null(df.u$groups) & ellipse & is.null(obs.fill)) {
     g <- g + stat_ellipse(geom="polygon", aes(y = yvar, x = xvar, fill = groups), 
                           alpha = ellipse.alpha, 
@@ -200,7 +237,7 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     arrow.r = col2rgb(arrow.color)[1]/255 #
     arrow.g = col2rgb(arrow.color)[2]/255 #
     arrow.b = col2rgb(arrow.color)[3]/255 #
-    arrow.labCol = rgb(arrow.r, arrow.g, arrow.b, arrow.alpha) #
+    arrow.col = rgb(arrow.r, arrow.g, arrow.b, arrow.alpha) #
     arrow.txtCol = rgb(arrow.r, arrow.g, arrow.b) #
     
     # Draw directions
@@ -208,10 +245,16 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
       geom_segment(data = df.v,
                    aes(x = 0, y = 0, xend = xvar*arrow.scaling, yend = yvar*arrow.scaling),
                    arrow = arrow(length = unit(1/2, 'picas')), 
-                   color = arrow.labCol) #
+                   color = arrow.col) #
   }
   # Draw either labels or points
   if(!is.null(df.u$labels)) {
+    if(!is.null(obs.pal)){
+      g <- g +
+        new_scale_color() +
+        scale_color_manual(values = if(text.col.muted) muted(obs.pal) else obs.pal, name = if(is.null(obs.leg.title) & is.null(obs.fill)) substitute(groups) else if(is.null(obs.leg.title) & !is.null(obs.fill)) substitute(obs.fill) else obs.leg.title)
+      
+    }
     if(!is.null(df.u$groups)) {
       g <- g + geom_text(aes(label = labels, color = groups), size = labels.size)
     } else {
@@ -219,10 +262,6 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     }
   } else {
     fill = if(!is.null(obs.fill)) obs.fill else groups
-  if(!is.null(obs.fill) & !is.null(obs.pal)){
-    g <- g +  new_scale_fill() +
-      scale_fill_manual(values = obs.pal)
-  }
     #shape = if(!is.null(obs.shape)) obs.shape else 21
     #if(!is.null(df.u$groups)) {
       if(length(obs.size) == 1){ 
@@ -234,7 +273,7 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
         }
       } else {
         if(!is.null(fill)){
-          if(length(fill) == 1) g <- g + geom_point(aes(size = obs.size),fill = fill, color = obs.color, shape = 21, alpha = alpha)
+          if(length(fill) == 1) g <- g + geom_point(aes(size = obs.size), fill = fill, color = obs.color, shape = 21, alpha = alpha)
           else g <- g + geom_point(aes(fill = fill, size = obs.size), color = obs.color, shape = 21, alpha = alpha)
         } else {
           g <- g + geom_point(aes(size = obs.size), color = obs.color, shape = 21, alpha = alpha)
@@ -294,20 +333,57 @@ ggbiplot <- function(pcobj, choices = 1:2, scale = 1, pc.biplot = TRUE,
     #names(ell)[1:2] <- c('xvar', 'yvar')
     #g <- g + geom_path(data = ell, aes(color = groups, fill = groups, group = groups), alpha = 0.5)
     if(is.null(obs.fill)){
+      # Draw ellipses
+      if(!is.null(gr.pal)){
+        g <- g +
+          new_scale_color() +
+          scale_color_manual(values = gr.pal, name = if(is.null(gr.leg.title)) substitute(groups) else gr.leg.title)
+      }
       g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, color = groups), 
                             show.legend = FALSE, 
                             level = ellipse.level,
                             type = ellipse.type, 
                             lwd = 1)
+      # Label ellipses
+      if(gr.labels){
+        if(!is.null(gr.pal)){
+          g <- g +
+            new_scale_color() +
+            scale_color_manual(values = if(text.col.muted) muted(gr.pal) else gr.pal, name = if(is.null(gr.leg.title)) substitute(groups) else gr.leg.title)
+        }
+        g <- g + geom_text(data = df.u.cn, aes(y = yvar, x = xvar, color = groups, label = groups), fontface = 'bold', size = gr.lab.size)
+      }
     } else {
-      g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, lty = groups),
-                            show.legend = FALSE, 
-                            level = ellipse.level,
-                            type = ellipse.type, 
-                            lwd = 1)
+      # Draw ellipses
+      if(!is.null(gr.pal)){
+        g <- g +
+          new_scale_color() +
+          scale_color_manual(values = gr.pal, name = if(is.null(gr.leg.title)) substitute(groups) else gr.leg.title) + 
+          stat_ellipse(geom="path", aes(y = yvar, x = xvar, lty = groups, color = groups),
+                              show.legend = FALSE, 
+                              level = ellipse.level,
+                              type = ellipse.type, 
+                              lwd = 1)
+      } else {
+        g <- g + stat_ellipse(geom="path", aes(y = yvar, x = xvar, lty = groups),
+                              show.legend = FALSE, 
+                              level = ellipse.level,
+                              type = ellipse.type, 
+                              lwd = 1) 
+      }
+      # Label ellipses
+      if(gr.labels){
+        if(!is.null(gr.pal)){
+          g <- g +
+            new_scale_color() +
+            scale_color_manual(values = if(text.col.muted) muted(gr.pal) else gr.pal, name = if(is.null(gr.leg.title)) substitute(groups) else gr.leg.title) +
+            geom_text(data = df.u.cn, aes(y = yvar, x = xvar, label = groups, color = groups), fontface = 'bold', size = gr.lab.size)
+        } else {
+          g <- g + geom_text(data = df.u.cn, aes(y = yvar, x = xvar, label = groups), fontface = 'bold', size = gr.lab.size)
+        }
+      }
     }
   }
-
   # Label the variable axes
   if(var.axes) {
     g <- g + 
